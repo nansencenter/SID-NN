@@ -1,41 +1,62 @@
 import numpy as np
-
-def im2tile(X2,y2, dsize=25,slic=1):
+def im2tile(X2,y2, dsize=25,strides=1):
     nn,ny,nx,nc = X2.shape
-    print(nn,ny,nx,nc)
-    nrows = (ny-dsize)//slic + 1
-    ncols = (nx-dsize)//slic +1
-    print(nrows,ncols)
+    nrows = (ny-dsize)//strides + 1
+    ncols = (nx-dsize)//strides +1
 
     X1 = np.empty((nrows*ncols*nn,dsize,dsize,nc))
-    y1 = np.zeros((nrows*ncols*nn,2))
-    print (X1.shape)
+    y1 = np.zeros((nrows*ncols*nn,y2.shape[-1]))
     k=0
     for im in range(nn):
         for ix in range(ncols):
             for iy in range(nrows):
-                X1[k,:,:,:] = X2[im,iy*slic:iy*slic+dsize,ix*slic:ix*slic+dsize,:]
-                y1[k,:] = y2[im,iy*slic+dsize//2,ix*slic+dsize//2,:]
+                X1[k,:,:,:] = X2[im,iy*strides:iy*strides+dsize,ix*strides:ix*strides+dsize,:]
+                y1[k,:] = y2[im,iy*strides+dsize//2,ix*strides+dsize//2,:]
                 k=k+1
     return X1,y1
 
-def tile2im(X1,y1,slic=1,ny=400,nx=500):
+def tile2im(X1,y1,strides=1,ny=400,nx=500):
     dsize = X1.shape[1]
-    nrows = (ny-dsize)//slic + 1
-    ncols = (nx-dsize)//slic +1
+    nrows = (ny-dsize)//strides + 1
+    ncols = (nx-dsize)//strides +1
     nn = X1.shape[0]//(nrows*ncols)
+    nc = X1.shape[-1]
     X2 = np.empty((nn,ny,nx,nc))
-    y2 = np.zeros((nn,ny,nx,2))
-    print(nn,nrows,ncols)
+    y2 = np.zeros((nn,ny,nx,y1.shape[-1]))
     k=0
     for im in range(nn):
         for ix in range(ncols):
             for iy in range(nrows):
-                X2[im,iy*slic:iy*slic+dsize,ix*slic:ix*slic+dsize,:]=X1[k,:,:,:]
-                y2[im,iy*slic+dsize//2,ix*slic+dsize//2,:]=y1[k,:]
+                X2[im,iy*strides:iy*strides+dsize,ix*strides:ix*strides+dsize,:]=X1[k,:,:,:]
+                y2[im,iy*strides+dsize//2,ix*strides+dsize//2,:]=y1[k,:]
                 k=k+1
     return X2, y2
 
+
+def stack_training(X2, y2, mask_in, mask_out, dsize=25, strides=1):
+    X2[~mask_in] = np.nan
+    y2[~mask_out] =  np.nan
+    if y2.ndim == 3:
+        y2 = y2[...,np.newaxis]
+    X1, y1 = im2tile(X2, y2, dsize=dsize, strides=strides)
+    mask_train_in =  np.all(np.isfinite(X1),axis=(1,2,3)) 
+    mask_train_out =  np.all(np.isfinite(y1),axis=(1)) 
+    mask_train = mask_train_in & mask_train_out
+    X = X1[mask_train,:]
+    y = y1[mask_train,0]
+    return X, y, mask_train
+
+def unstack_training(X, y, mask_train, ny=400, nx=500, strides=1):
+    nn = mask_train.shape[0]
+    dsize = X1.shape[1]
+    if y.ndim == 1:
+        y = y[...,np.newaxis]
+    X1 = np.nan * np.ones((nn,dsize,dsize,nc))
+    y1 = np.nan * np.ones((nn,y1.shape[-1]))
+    X1[mask_train] = X
+    y1[mask_train] = y
+    X2, y2 = tile2im(X1,y1, strides= strides, ny=ny, nx=nx)
+    
 
 def code_dam(dd, epsi=1e-3, vmin=0.):
     cmin = np.log10(epsi)
