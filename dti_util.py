@@ -48,15 +48,16 @@ def stack_training(X2, y2, mask_in, mask_out, dsize=25, strides=1):
 
 def unstack_training(X, y, mask_train, ny=400, nx=500, strides=1):
     nn = mask_train.shape[0]
-    dsize = X1.shape[1]
+    nc = X.shape[-1]
+    dsize = X.shape[1]
     if y.ndim == 1:
         y = y[...,np.newaxis]
     X1 = np.nan * np.ones((nn,dsize,dsize,nc))
-    y1 = np.nan * np.ones((nn,y1.shape[-1]))
+    y1 = np.nan * np.ones((nn,y.shape[-1]))
     X1[mask_train] = X
     y1[mask_train] = y
     X2, y2 = tile2im(X1,y1, strides= strides, ny=ny, nx=nx)
-    
+    return X2, y2
 
 def code_dam(dd, epsi=1e-3, vmin=0.):
     cmin = np.log10(epsi)
