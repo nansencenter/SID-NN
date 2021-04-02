@@ -115,7 +115,6 @@ def iter_shuffled(X, columns_to_shuffle=None, pre_shuffle=False,
         columns_to_shuffle = range(X.shape[1])
 
     if pre_shuffle:
-        print('preshuffle')
         X_shuffled = X.copy()
         rng.shuffle(X_shuffled)
 
@@ -165,6 +164,7 @@ def get_score_importances(
     base_score = score_func(X, y)
     scores_decreases = []
     for i in range(n_iter):
+        print (f'Iteration {i+1}/{n_iter}')
         scores_shuffled = _get_scores_shufled(
             score_func, X, y, columns_to_shuffle=columns_to_shuffle,
             random_state=rng, pre_shuffle = pre_shuffle
