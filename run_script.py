@@ -106,7 +106,8 @@ reg.fit(
     ytrain[:dmod['ntrain']],
     validation_data=(Xval, yval),
     epochs = dmod['epochs'],
-    callbacks=[tensorboard_callback, early_stopping_monitor]
+    callbacks=[tensorboard_callback, early_stopping_monitor],
+    #batch_size=16
     )
 model = reg.export_model()
 model.save(os.path.join(model_dir,model_name), save_format="tf")
