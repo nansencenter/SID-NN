@@ -93,7 +93,7 @@ import numpy as np
 from sklearn.utils import check_random_state
 
 
-def iter_shuffled(X, columns_to_shuffle=None, pre_shuffle=False,
+def iter_shuffled_old(X, columns_to_shuffle=None, pre_shuffle=False,
                   random_state=None):
     """
     Return an iterator of X matrices which have one or more columns shuffled.
@@ -127,6 +127,42 @@ def iter_shuffled(X, columns_to_shuffle=None, pre_shuffle=False,
         yield X_res
         X_res[:, columns] = X[:, columns]
 
+        
+def iter_shuffled(X, columns_to_shuffle=None, pre_shuffle=False,
+                  random_state=None, icol=-1):
+    """
+    Return an iterator of X matrices which have one or more columns shuffled.
+    After each iteration yielded matrix is mutated inplace, so
+    if you want to use multiple of them at the same time, make copies.
+
+    ``columns_to_shuffle`` is a sequence of column numbers to shuffle.
+    By default, all columns are shuffled once, i.e. columns_to_shuffle
+    is ``range(X.shape[1])``.
+
+    If ``pre_shuffle`` is True, a copy of ``X`` is shuffled once, and then
+    result takes shuffled columns from this copy. If it is False,
+    columns are shuffled on fly. ``pre_shuffle = True`` can be faster
+    if there is a lot of columns, or if columns are used multiple times.
+    """
+    rng = check_random_state(random_state)
+
+    if columns_to_shuffle is None:
+        columns_to_shuffle = range(X.shape[icol])
+
+    if pre_shuffle:
+        X_shuffled = X.copy()
+        rng.shuffle(X_shuffled)
+
+    X_res = X.copy()
+    ndims = X_res.ndim
+    for columns in columns_to_shuffle:
+        idx = _get_col(columns, axis=icol, ndims=ndims)
+        if pre_shuffle:
+            X_res[idx] = X_shuffled[idx]
+        else:
+            rng.shuffle(X_res[idx])
+        yield X_res
+        X_res[idx] = X[idx]
 
 
 def get_score_importances(
@@ -136,7 +172,9 @@ def get_score_importances(
         n_iter=5,  # type: int
         columns_to_shuffle=None,
         random_state=None,
-        pre_shuffle=False
+        pre_shuffle=False,
+        icol=-1, 
+        display=False
     ):
     # type: (...) -> Tuple[float, List[np.ndarray]]
     """
@@ -164,10 +202,11 @@ def get_score_importances(
     base_score = score_func(X, y)
     scores_decreases = []
     for i in range(n_iter):
-        print (f'Iteration {i+1}/{n_iter}')
+        if display:
+            print (f'Iteration {i+1}/{n_iter}')
         scores_shuffled = _get_scores_shufled(
             score_func, X, y, columns_to_shuffle=columns_to_shuffle,
-            random_state=rng, pre_shuffle = pre_shuffle
+            random_state=rng, pre_shuffle = pre_shuffle, icol=icol
         )
         scores_decreases.append(-scores_shuffled + base_score)
     return base_score, scores_decreases
@@ -175,6 +214,18 @@ def get_score_importances(
 
 
 def _get_scores_shufled(score_func, X, y, columns_to_shuffle=None,
-                        random_state=None, pre_shuffle=False):
-    Xs = iter_shuffled(X, columns_to_shuffle, random_state=random_state, pre_shuffle=pre_shuffle)
+                        random_state=None, pre_shuffle=False, icol=-1):
+    Xs = iter_shuffled(X, columns_to_shuffle, random_state=random_state, pre_shuffle=pre_shuffle, icol=icol)
     return np.array([score_func(X_shuffled, y) for X_shuffled in Xs])
+
+def _get_col(icol, axis=-1, ndims=2):
+    idx = [slice(None) for i in range(ndims)]
+    idx[axis] = icol
+    return (tuple(idx))
+    
+
+def rmse(yval,ypred):
+    return np.sqrt(np.mean(np.square(yval - ypred)))
+
+def corr(yval, ypred):
+    return np.corrcoef(yval,ypred)[0,1]
