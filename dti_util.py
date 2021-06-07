@@ -1,6 +1,9 @@
 import numpy as np
 
-
+def clean_ax(ax):
+    for a in ax:
+        a.get_xaxis().set_ticks([])
+        a.get_yaxis().set_ticks([])
 
 def im2tile(X2,y2, dsize=25,strides=1):
     nn,ny,nx,nc = X2.shape

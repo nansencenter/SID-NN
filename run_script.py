@@ -6,7 +6,7 @@ import yaml
 import tensorflow as tf
 
 # Name of the experiment
-name = '4var'
+name = 'exp4'
 
 # Root of all directory used
 rootdir = '/mnt/sfe-ns9602k/Julien/data'
