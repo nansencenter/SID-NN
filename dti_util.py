@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import ndimage
 
 def clean_ax(ax):
     for a in ax:
@@ -232,3 +233,12 @@ def rmse(yval,ypred):
 
 def corr(yval, ypred):
     return np.corrcoef(yval,ypred)[0,1]
+
+def conv2d(inp,size=3,**kwargs):
+    mask = np.isnan(inp)
+    inp[mask] = np.median(inp[~mask])
+    out = ndimage.uniform_filter(inp,size,**kwargs)
+    out[mask] = np.nan
+    return(out)
+    
+    
