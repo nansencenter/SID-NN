@@ -4,9 +4,10 @@ import autokeras as ak
 from sklearn.model_selection import train_test_split
 import yaml 
 import tensorflow as tf
+from dti_util import default
 
 # Name of the experiment
-name = 'exp-smooth'
+name = 'exp-sr'
 
 # Root of all directory used
 rootdir = '/mnt/sfe-ns9602k/Julien/data'
@@ -17,7 +18,8 @@ expdir = os.path.join(rootdir, name)
 # Load experiment parameters
 with open(os.path.join(expdir,'data_params.yml' )) as file:
     exp_dict = yaml.load(file, Loader=yaml.FullLoader)
-    
+exp_dict = {**default, **exp_dict}
+
 # Print experiments parameters
 for key, value in exp_dict.items():
     print(key, ' : ', value)
@@ -27,21 +29,16 @@ traindir = exp_dict['traindir']
 epsi = exp_dict['epsi']
 th_dam = exp_dict['th_dam']
 dsize = exp_dict['dsize']
-
+scale = exp_dict['scale']
 
 # Name of the model
 #model_name = "long2"
 model_name = "long"
 
-# pretrained model ( if False, launch a new training)
-pretrained = True
 
 # Directory to stores the model
 model_dir = os.path.join(expdir, model_name)
 
-# Create the model directory if necessary
-if not os.path.isdir(model_dir):
-    os.mkdir(model_dir)
 
 # Read model parameters from yml file
 with open(os.path.join(model_dir,'model_params.yml' )) as file:
@@ -51,11 +48,19 @@ print ('--- MODEL CONFIGURATION ---')
 for key, value in dmod.items():
     print(key, ' : ', value)
 
-# Normalization function
-norm = lambda x : code_dam(x,epsi=epsi, vmin=th_dam)
+if scale is True:
+    print('Scaling the output')
+    from dti_util import code_dam, decode_dam
+    # Normalization function
+    norm = lambda x : code_dam(x,epsi=epsi, vmin=th_dam)
 
-# Denormalization function
-denorm = lambda x : decode_dam(x,epsi=epsi, vmin=th_dam)
+    # Denormalization function
+    denorm = lambda x : decode_dam(x,epsi=epsi, vmin=th_dam)
+else:
+    print('No scaling')
+
+    norm = lambda x : x
+    denorm = lambda x : x
 
 data = np.load(os.path.join(traindir,'train.npz'))
 X = data['Xtrain']

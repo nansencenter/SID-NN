@@ -1,6 +1,11 @@
 import numpy as np
 from scipy import ndimage
 
+
+# Default setting for experiment parameter
+default = dict(smooth_drift=None, smooth_sic=None, smooth_sit=None, scale=True, epsi=None, targetname='d',targetfullname='damage')
+
+
 def clean_ax(ax):
     for a in ax:
         a.get_xaxis().set_ticks([])
