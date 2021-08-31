@@ -3,7 +3,9 @@ from scipy import ndimage
 
 
 # Default setting for experiment parameter
-default = dict(smooth_drift=None, smooth_sic=None, smooth_sit=None, scale=True, epsi=None, targetname='d',targetfullname='damage')
+default = dict(
+    smooth_output=None,strides_test=1,
+    smooth_drift=None, smooth_sic=None, smooth_sit=None, scale=True, epsi=None, targetname='d',targetfullname='damage')
 
 
 def clean_ax(ax):
@@ -11,46 +13,57 @@ def clean_ax(ax):
         a.get_xaxis().set_ticks([])
         a.get_yaxis().set_ticks([])
 
-def im2tile(X2,y2, dsize=25,strides=1):
+def im2tile(X2,y2, dsize=25,strides=1, subd=1):
     nn,ny,nx,nc = X2.shape
-    nrows = (ny-dsize)//strides + 1
-    ncols = (nx-dsize)//strides +1
+    nrows = (ny-dsize*subd)//strides + 1
+    ncols = (nx-dsize*subd)//strides +1
 
     X1 = np.empty((nrows*ncols*nn,dsize,dsize,nc))
-    y1 = np.zeros((nrows*ncols*nn,y2.shape[-1]))
+    if y2 is None:
+        y1 = None
+    else:
+        y1 = np.zeros((nrows*ncols*nn,y2.shape[-1]))
     k=0
     for im in range(nn):
         for ix in range(ncols):
             for iy in range(nrows):
-                X1[k,:,:,:] = X2[im,iy*strides:iy*strides+dsize,ix*strides:ix*strides+dsize,:]
-                y1[k,:] = y2[im,iy*strides+dsize//2,ix*strides+dsize//2,:]
+                X1[k,:,:,:] = X2[im,iy*strides:iy*strides+dsize*subd:subd,ix*strides:ix*strides+dsize*subd:subd,:]
+                if not y2 is None:
+                    y1[k,:] = y2[im,iy*strides+(dsize*subd)//2,ix*strides+(dsize*subd)//2,:]
                 k=k+1
     return X1,y1
 
-def tile2im(X1,y1,strides=1,ny=400,nx=500):
+def tile2im(X1,y1,strides=1,ny=400,nx=500, subd=1,squeezey=False):
     dsize = X1.shape[1]
-    nrows = (ny-dsize)//strides + 1
-    ncols = (nx-dsize)//strides +1
+    nrows = (ny-dsize*subd)//strides + 1
+    ncols = (nx-dsize*subd)//strides +1
     nn = X1.shape[0]//(nrows*ncols)
     nc = X1.shape[-1]
-    X2 = np.empty((nn,ny,nx,nc))
-    y2 = np.zeros((nn,ny,nx,y1.shape[-1]))
+    X2 = np.zeros((nn,ny,nx,nc))
+    if y1 is None:
+        y2 = None
+    else:
+        y2 = np.zeros((nn,ny,nx,y1.shape[-1]))
+        
     k=0
     for im in range(nn):
         for ix in range(ncols):
             for iy in range(nrows):
-                X2[im,iy*strides:iy*strides+dsize,ix*strides:ix*strides+dsize,:]=X1[k,:,:,:]
-                y2[im,iy*strides+dsize//2,ix*strides+dsize//2,:]=y1[k,:]
+                X2[im,iy*strides:iy*strides+dsize*subd:subd,ix*strides:ix*strides+dsize*subd:subd,:]=X1[k,:,:,:]
+                if not y1 is None:
+                    y2[im,iy*strides+(dsize*subd)//2,ix*strides+(dsize*subd)//2,:]=y1[k,:]
                 k=k+1
+    if squeezey:
+        y2 = y2[:,(dsize*subd)//2::strides,(dsize*subd)//2::strides]
     return X2, y2
 
 
-def stack_training(X2, y2, mask_in, mask_out, dsize=25, strides=1):
+def stack_training(X2, y2, mask_in, mask_out, dsize=25, strides=1, subd=1):
     X2[~mask_in] = np.nan
     y2[~mask_out] =  np.nan
     if y2.ndim == 3:
         y2 = y2[...,np.newaxis]
-    X1, y1 = im2tile(X2, y2, dsize=dsize, strides=strides)
+    X1, y1 = im2tile(X2, y2, dsize=dsize, strides=strides, subd=subd)
     mask_train_in =  np.all(np.isfinite(X1),axis=(1,2,3)) 
     mask_train_out =  np.all(np.isfinite(y1),axis=(1)) 
     mask_train = mask_train_in & mask_train_out
@@ -58,7 +71,7 @@ def stack_training(X2, y2, mask_in, mask_out, dsize=25, strides=1):
     y = y1[mask_train,0]
     return X, y, mask_train
 
-def unstack_training(X, y, mask_train, ny=400, nx=500, strides=1):
+def unstack_training(X, y, mask_train, ny=400, nx=500, strides=1, subd=1, squeezey=False):
     nn = mask_train.shape[0]
     nc = X.shape[-1]
     dsize = X.shape[1]
@@ -68,7 +81,7 @@ def unstack_training(X, y, mask_train, ny=400, nx=500, strides=1):
     y1 = np.nan * np.ones((nn,y.shape[-1]))
     X1[mask_train] = X
     y1[mask_train] = y
-    X2, y2 = tile2im(X1,y1, strides= strides, ny=ny, nx=nx)
+    X2, y2 = tile2im(X1,y1, strides= strides, ny=ny, nx=nx, subd=subd, squeezey=squeezey)
     return X2, y2
 
 def code_dam(dd, epsi=1e-3, vmin=0.):
