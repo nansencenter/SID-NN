@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from pyresample.geometry import AreaDefinition
 from scipy.interpolate import interp1d
+from scipy.stats import ks_2samp
 from skimage.util import view_as_windows
 
 rho_water = 1026
@@ -32,9 +33,13 @@ img_extent = [dst_xmin, dst_xmax, dst_ymax, dst_ymin]
 fig_xlim = [dst_xmin+500000, dst_xmax-1500000]
 fig_ylim = [dst_ymin+1700000, dst_ymax-300000]
 
+cs2_dir = '/Data/sat/downloads/CS2/SIR_GDR/2021/01'
+sit_inp_dir = '/Data/sim/antonk/dto_cnn/cnn_input'
+sit_lor_dir = '/Data/sim/antonk/dto_cnn/lr2_output'
+sit_hir_dir = '/Data/sim/antonk/dto_cnn/sar_output'
 
 def get_filenames(date0, date_delta0, date_delta1):
-    cs2_dir = '/Data/sat/downloads/CS2/SIR_GDR/2021/01'
+    
     cs2_files = []
     for timedelta in range(date_delta0, date_delta1+1):
         cs2_date = date0 + dt.timedelta(timedelta)
@@ -43,9 +48,9 @@ def get_filenames(date0, date_delta0, date_delta1):
     print(len(cs2_files))
 
     npz_name = date0.strftime('%Y%d%m')
-    sit_inp_name = f'/Data/sim/antonk/sat_data_4cnn/sic_sit_def_{npz_name}.npz'
-    sit_lor_name = f'/data1/antonk/dto_sit_nn/lr_input/sit_nn_{npz_name}.npy'
-    sit_hir_name = f'/data1/antonk/dto_sit_nn/sar_input/sit_nn_{npz_name}.npy'
+    sit_inp_name = f'{sit_inp_dir}/sic_sit_def_{npz_name}.npz'
+    sit_lor_name = f'{sit_lor_dir}/sit_nn_{npz_name}.npy'
+    sit_hir_name = f'{sit_hir_dir}/sit_nn_{npz_name}.npy'
 
     return cs2_files, sit_inp_name, sit_lor_name, sit_hir_name
 
@@ -202,7 +207,7 @@ def plot_orbit_mean(c, r, h, arrays, pi0=100, pi1=240):
 
     plt.xlim([300, 500])
     plt.show()
-    
+
 def rasterize_cs2(c, r, h, sit_cnn, ws=0, stp=1, func=np.nanmean):
     orb_rows = np.floor(r).astype(int)
     orb_cols = np.floor(c).astype(int)
@@ -215,24 +220,27 @@ def rasterize_cs2(c, r, h, sit_cnn, ws=0, stp=1, func=np.nanmean):
     sit_cs2 = grd_cs2_sum / grd_cs2_cnt
     sit_cs2[grd_cs2_cnt == 0] = np.nan
     
-    if ws > 0:
-        sit_cs2_f = func(view_as_windows(sit_cs2, ws, stp), axis=(2,3))
-        pad_tot = np.array(sit_cs2.shape) - np.array(sit_cs2_f.shape)
-        pad_0 = np.floor(pad_tot/2).astype(int)
-        pad_1 = pad_tot - pad_0
-        sit_cs2_f = np.pad(sit_cs2_f, [[pad_0[0], pad_1[0]], [pad_0[1], pad_1[1]]], 'edge')
+    if ws > 1:
+        sit_cs2_f = proc_view_as_windows(sit_cs2, func, ws, stp)
         gpi = np.isfinite(sit_cs2)
         sit_cs2[gpi] = sit_cs2_f[gpi]
     
     return sit_cs2
 
 def compute_anomaly(arr, ws=5, stp=1, func=np.nanmean):
-    func=np.nanmean
-    v = view_as_windows(arr, ws, stp)
-    avg = func(v, axis=(2,3))
-    avg = np.pad(avg, ((2, 2), (2, 2)), 'edge')
+    avg = proc_view_as_windows(arr, func, ws, stp)
     ano = avg - arr
     return avg, ano
+
+def proc_view_as_windows(arr, func, ws, stp):
+    v = view_as_windows(arr, ws, stp)
+    f = func(v, axis=(2,3))
+    if stp == 1:
+        pad_tot = np.array(arr.shape) - np.array(f.shape)
+        pad_0 = np.floor(pad_tot/2).astype(int)
+        pad_1 = pad_tot - pad_0
+        f = np.pad(f, [[pad_0[0], pad_1[0]], [pad_0[1], pad_1[1]]], 'edge')
+    return f
 
 def compute_precentiles(arr, p_vec, ws=5, stp=1):
     ppp = {}
@@ -351,3 +359,31 @@ def plot_orbit_anomaly_quantile(odf_masked, arrays, colors, labels, km0=2.8485e6
     ax[1].legend()
     #ax[1].set_xlim([200, 500])
     plt.tight_layout()
+
+def plot_ks_test(odf_masked, arrays0, titles, ws0=2, ws1=16, ano_ws=15):
+    ano_arrays0 = [compute_anomaly(arr, ws=ano_ws)[1] for arr in arrays0]
+    
+    ks_vals_wss = []
+    wss = np.arange(ws0, ws1)
+    for ws in wss:
+        smth_time = f'{ws*6}s'
+        c2, r2, h2 = get_smoothed_resampled_orbits(odf_masked, smth_time=smth_time, resample_time='6s', min_periods=5, t0=None, t1=None)
+        sit_cs22 = rasterize_cs2(c2, r2, h2, arrays0[0], ws=ws)
+
+        ano_arrays = [compute_anomaly(sit_cs22, ws=ano_ws)[1]] + ano_arrays0
+        prod = np.prod(ano_arrays, axis=0)
+        gpi = np.isfinite(prod)
+        ano_arrays = [arr[gpi] for arr in ano_arrays]
+        ano_arrays = [arr[arr < 0] for arr in ano_arrays]
+
+        ks_vals = [ks_2samp(ano_arrays[0], ano_arrays[i])[0] for i in range(1, len(ano_arrays))]
+        print(ws, smth_time, ks_vals)
+        ks_vals_wss.append(ks_vals)
+    ks_vals_wss = np.array(ks_vals_wss)
+
+    plt.plot(wss*6, ks_vals_wss)
+    plt.legend(titles)
+    plt.xlabel('Spatial scale, km')
+    plt.ylabel('Kholmogorov-Smirnov test, m')
+    plt.show()
+    
