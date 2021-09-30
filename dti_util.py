@@ -60,15 +60,23 @@ def tile2im(X1,y1,strides=1,ny=400,nx=500, subd=1,squeezey=False):
 
 def stack_training(X2, y2, mask_in, mask_out, dsize=25, strides=1, subd=1):
     X2[~mask_in] = np.nan
-    y2[~mask_out] =  np.nan
-    if y2.ndim == 3:
-        y2 = y2[...,np.newaxis]
+    if not y2 is None:
+        y2[~mask_out] =  np.nan
+        if y2.ndim == 3:
+            y2 = y2[...,np.newaxis]
     X1, y1 = im2tile(X2, y2, dsize=dsize, strides=strides, subd=subd)
     mask_train_in =  np.all(np.isfinite(X1),axis=(1,2,3)) 
-    mask_train_out =  np.all(np.isfinite(y1),axis=(1)) 
-    mask_train = mask_train_in & mask_train_out
+    if y2 is None:
+        mask_train = mask_train_in
+        y = None
+    else:
+        mask_train_out =  np.all(np.isfinite(y1),axis=(1)) 
+        mask_train = mask_train_in & mask_train_out
+        y = y1[mask_train,0]
+        
     X = X1[mask_train,:]
-    y = y1[mask_train,0]
+    
+    
     return X, y, mask_train
 
 def unstack_training(X, y, mask_train, ny=400, nx=500, strides=1, subd=1, squeezey=False):

@@ -7,7 +7,7 @@ import tensorflow as tf
 from dti_util import default
 
 # Name of the experiment
-name = 'exp-sr-sat-hr'
+name = 'exp-sr-sat-hr-smallpatch'
 
 # Root of all directory used
 rootdir = '/mnt/sfe-ns9602k/Julien/data'
