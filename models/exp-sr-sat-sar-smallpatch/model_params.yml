@@ -1,0 +1,11 @@
+epochs: 300
+fname_score_saliency: saliency_score
+fname_score_shuffle: shuffle_score
+log_dir: /mnt/sfe-ns9602k/.tools/deep-learn-1603280065-tensorboard/autokeras/exp-sr-sat-sar-smallpatch-long
+max_trials: 50
+ntrain: null
+patience: 15
+split_seed: 1
+target_th: 0.95
+test_size: 0.15
+type: reg

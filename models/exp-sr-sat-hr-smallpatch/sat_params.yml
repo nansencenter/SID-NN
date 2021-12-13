@@ -1,0 +1,12 @@
+datadir: data/sat
+factors:
+  divergence: 1.1574074074074073e-05
+  shear: 1.1574074074074073e-05
+  sic: 0.01
+outname: sit_nn_pmw_{date}.npy
+path: data/processed
+sar: false
+strides_test: 1
+subd: 1
+timname: sat_image_pmw_{date}.npy
+tname: sat_input_pmw_{date}.npz
